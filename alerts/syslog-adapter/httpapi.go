@@ -56,7 +56,7 @@ func (r *Run) AlertMsgFromWebhook(w http.ResponseWriter, hr *http.Request) {
 	}
 	log.Debugf("Get unmarshal alert data: %v", alertData)
 	r.AlertMsgs <- alertData
-	r.Rdr.Text(w, http.StatusAccepted, "")
+	r.Rdr.Text(w, http.StatusAccepted, "success")
 }
 
 //CreateRouter create router
