@@ -2,9 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"net/smtp"
+	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
 	"github.com/juju/errors"
 	"github.com/ngaut/log"
 )
@@ -31,43 +32,33 @@ type KafkaMsg struct {
 
 //Run represents runtime information
 type Run struct {
-	KafkaClient sarama.SyncProducer
 }
 
-//CreateKafkaProducer creates a new SyncProducer using the given broker addresses and configuration
-func (r *Run) CreateKafkaProducer(addrs []string) error {
-	var err error
+//PushKafkaMsg sends email to smtp server
+func (r *Run) PushKafkaMsg(alertname, msg string) error {
+	// Set up authentication information.
+	auth := smtp.PlainAuth(
+		"",
+		*SMTPAuthUsername,
+		*SMTPAuthPassword,
+		*SMTPSmarthost,
+	)
+	to := strings.Split(*SMTPTo, ",")
+	user := *SMTPFrom
+	subject := alertname
+	content_type := "Content-Type: text/plain; charset=UTF-8"
+	body := msg
+	message := []byte("To: " + *SMTPTo + "\r\nFrom: " + user +
+		"<" + user + ">\r\nSubject: " + subject + "\r\n" + content_type + "\r\n\r\n" + body)
 
-	for i := 0; i < maxRetry; i++ {
-		config := sarama.NewConfig()
-		config.Producer.Return.Successes = true
-		config.Producer.RequiredAcks = sarama.WaitForAll
-
-		r.KafkaClient, err = sarama.NewSyncProducer(addrs, config)
-
-		if err != nil {
-			log.Errorf("create kafka producer with error: %v", err)
-			time.Sleep(retryInterval)
-			continue
-		}
-		return nil
-	}
-
-	return errors.Trace(err)
-}
-
-//PushKafkaMsg pushes message to kafka cluster
-func (r *Run) PushKafkaMsg(msg string) error {
-	kafkaMsg := &sarama.ProducerMessage{
-		Topic: *kafkaTopic,
-		Value: sarama.StringEncoder(msg),
-	}
-
-	partition, offset, err := r.KafkaClient.SendMessage(kafkaMsg)
+	// Connect to the server, authenticate, set the sender and recipient,
+	// and send the email all in one step
+	err := smtp.SendMail(*SMTPSmarthost+":25", auth, user, to, message)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	log.Infof("Produced message %s to kafka cluster partition %d with offset %d", msg, partition, offset)
+
+	log.Infof("send email %s:%s to smtp server", alertname, message)
 	return nil
 }
 
@@ -93,8 +84,8 @@ func (r *Run) TransferData(alertname, env, instance, level, summary string) {
 	}
 
 	for i := 0; i < maxRetry; i++ {
-		if err := r.PushKafkaMsg(string(alertByte)); err != nil {
-			log.Errorf("Failed to produce message to kafka cluster: %v", err)
+		if err := r.PushKafkaMsg(alertname, string(alertByte)); err != nil {
+			log.Errorf("Failed to send email to smtp server: %v", err)
 			time.Sleep(retryInterval)
 			continue
 		}
