@@ -2,11 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"net/smtp"
-	"strings"
 	"time"
 
-	"github.com/juju/errors"
 	"github.com/ngaut/log"
 )
 
@@ -32,34 +29,6 @@ type KafkaMsg struct {
 
 //Run represents runtime information
 type Run struct {
-}
-
-//PushKafkaMsg sends email to smtp server
-func (r *Run) PushKafkaMsg(alertname, msg string) error {
-	// Set up authentication information.
-	auth := smtp.PlainAuth(
-		"",
-		*SMTPAuthUsername,
-		*SMTPAuthPassword,
-		*SMTPSmarthost,
-	)
-	to := strings.Split(*SMTPTo, ",")
-	user := *SMTPFrom
-	subject := alertname
-	content_type := "Content-Type: text/plain; charset=UTF-8"
-	body := msg
-	message := []byte("To: " + *SMTPTo + "\r\nFrom: " + user +
-		"<" + user + ">\r\nSubject: " + subject + "\r\n" + content_type + "\r\n\r\n" + body)
-
-	// Connect to the server, authenticate, set the sender and recipient,
-	// and send the email all in one step
-	err := smtp.SendMail(*SMTPSmarthost+":25", auth, user, to, message)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	log.Infof("send email %s:%s to smtp server", alertname, message)
-	return nil
 }
 
 //TransferData transfers AlertData to string and sends message to kafka
