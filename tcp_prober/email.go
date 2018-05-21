@@ -15,6 +15,7 @@ type loginAuth struct {
 	username, password string
 }
 
+// LoginAuth ... implements stmp.Auth
 func LoginAuth(username, password string) smtp.Auth {
 	return &loginAuth{username, password}
 }
@@ -38,17 +39,17 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	return nil, nil
 }
 
-func (r *Run) PushKafkaMsg(alertname, msg string) error {
-	from := mail.Address{"", *SMTPFrom}
-	to := mail.Address{"", *SMTPTo}
-	subj := alertname
-	body := msg
+// PushKafkaMsg ... sends alert messages to SMTP server
+func (r *Run) PushKafkaMsg(alertname, alertmsg string) error {
+	body := alertmsg
+	from := *smtpFrom
+	to := *smtpTo
 
 	// Setup headers
 	headers := make(map[string]string)
-	headers["From"] = from.String()
-	headers["To"] = to.String()
-	headers["Subject"] = subj
+	headers["From"] = from
+	headers["To"] = to
+	headers["Subject"] = fmt.Sprintf("[FIRING] %s %s", alertname, *clusterName)
 
 	// Setup message
 	message := ""
@@ -58,17 +59,16 @@ func (r *Run) PushKafkaMsg(alertname, msg string) error {
 	message += "\r\n" + body
 
 	var c *smtp.Client
-	c, err := smtp.Dial(*SMTPSmarthost + ":25")
+	c, err := smtp.Dial(*smtpSmarthost)
 	if err != nil {
 		return errors.Errorf("dial smtp server %s", err)
 	}
 
 	if ok, mesh := c.Extension("AUTH"); ok {
-		fmt.Println(mesh)
-		auth := LoginAuth(*SMTPAuthUsername, *SMTPAuthPassword)
+		auth := LoginAuth(*smtpAuthUsername, *smtpAuthPassword)
 
 		if auth != nil {
-			if err := c.Auth(auth); err != nil {
+			if err = c.Auth(auth); err != nil {
 				return errors.Errorf("%T failed: %s", auth, err)
 			}
 		}
@@ -76,12 +76,18 @@ func (r *Run) PushKafkaMsg(alertname, msg string) error {
 
 	defer c.Quit()
 
-	if err := c.Mail(*SMTPFrom); err != nil {
+	if err = c.Mail(from); err != nil {
 		return errors.Errorf("sending mail from: %s", err)
 	}
 
-	if err := c.Rcpt(*SMTPTo); err != nil {
-		return errors.Errorf("sending rcpt to: %s", err)
+	addrs, err := mail.ParseAddressList(to)
+	if err != nil {
+		return errors.Errorf("parsing to addresses: %s", err)
+	}
+	for _, addr := range addrs {
+		if err = c.Rcpt(addr.Address); err != nil {
+			return errors.Errorf("sending rcpt to: %s", err)
+		}
 	}
 
 	// Send the email body.

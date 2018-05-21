@@ -15,11 +15,11 @@ var (
 	logRotate        = flag.String("log-rotate", "day", "log file rotate type: hour/day")
 	configFile       = flag.String("config", "", "path to configuration file")
 	clusterName      = flag.String("cluster-name", "", "TiDB Cluster name")
-	SMTPSmarthost    = flag.String("smtp_smarthost", "", "SMTP Server")
-	SMTPAuthUsername = flag.String("smtp_auth_username", "", "SMTP Auth Username")
-	SMTPAuthPassword = flag.String("smtp_auth_password", "", "SMTP Auth Password")
-	SMTPFrom         = flag.String("smtp_from", "", "SMTP From")
-	SMTPTo           = flag.String("smtp_to", "", "SMTP To")
+	smtpSmarthost    = flag.String("smtp_smarthost", "", "SMTP Server")
+	smtpAuthUsername = flag.String("smtp_auth_username", "", "SMTP Auth Username")
+	smtpAuthPassword = flag.String("smtp_auth_password", "", "SMTP Auth Password")
+	smtpFrom         = flag.String("smtp_from", "", "SMTP From")
+	smtpTo           = flag.String("smtp_to", "", "SMTP To")
 )
 
 func main() {
