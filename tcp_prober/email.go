@@ -64,7 +64,7 @@ func (r *Run) PushKafkaMsg(alertname, alertmsg string) error {
 		return errors.Errorf("dial smtp server %s", err)
 	}
 
-	if ok, mesh := c.Extension("AUTH"); ok {
+	if ok, _ := c.Extension("AUTH"); ok {
 		auth := LoginAuth(*smtpAuthUsername, *smtpAuthPassword)
 
 		if auth != nil {
