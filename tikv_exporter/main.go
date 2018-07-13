@@ -24,6 +24,10 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
+var (
+	stores = []string{}
+)
+
 type tikvOpts struct {
 	addrs string
 }
@@ -53,9 +57,75 @@ func checkParameters(opts tikvOpts) {
 	}
 }
 
+func sanitizeLabels(
+	metricFamilies map[string]*dto.MetricFamily,
+	groupingLabels map[string]string,
+) {
+	for _, mf := range metricFamilies {
+		for _, m := range mf.GetMetric() {
+			for key, value := range groupingLabels {
+				l := &dto.LabelPair{
+					Name:  proto.String(key),
+					Value: proto.String(value),
+				}
+				m.Label = append(m.Label, l)
+			}
+			sort.Sort(prometheus.LabelPairSorter(m.Label))
+		}
+	}
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+	allMetrics := make([]*dto.MetricFamily, 0, 1024)
+	for _, store := range stores {
+		fmt.Printf("%s\n", store)
+
+		tikvConn, err := grpc.Dial(store, grpc.WithInsecure())
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		tikvClient := debugpb.NewDebugClient(tikvConn)
+		metrics, err := tikvClient.GetMetrics(ctx, &debugpb.GetMetricsRequest{})
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		mData := metrics.GetPrometheus()
+		storeID := metrics.GetStoreId()
+		fmt.Println(storeID)
+
+		labels := map[string]string{
+			"job":      fmt.Sprintf("tikv_%d", storeID),
+			"instance": store,
+		}
+
+		var parser expfmt.TextParser
+		metricFamilies, err := parser.TextToMetricFamilies(bytes.NewBufferString(mData))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		sanitizeLabels(metricFamilies, labels)
+
+		for _, m := range metricFamilies {
+			allMetrics = append(allMetrics, m)
+		}
+
+		tikvConn.Close()
+	}
+
+	for _, m := range allMetrics {
+		var b bytes.Buffer
+		expfmt.MetricFamilyToText(&b, m)
+		fmt.Fprintf(w, "%s", b.String())
+	}
+}
+
 func main() {
 	var (
-		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for web interface and telemetry").Default(":20180").String()
+		listenAddress = kingpin.Flag("web.listen-address", "Address on which to expose metrics and web interface.").Default(":9600").String()
 		metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
 		logFile       = kingpin.Flag("log-file", "Log file path.").Default("").String()
 		logLevel      = kingpin.Flag("log-level", "Log level: debug, info, warn, error, fatal.").Default("info").String()
@@ -83,58 +153,12 @@ func main() {
 
 	log.Info("Starting tikv_exporter")
 
-	stores, err := ParseHostPortAddr(opts.addrs)
-	if err != nil {
-		log.Fatalf("initialize tikv_exporter error, %v", errors.ErrorStack(err))
-	}
+	stores, _ = ParseHostPortAddr(opts.addrs)
+	// if err != nil {
+	//     log.Fatalf("initialize tikv_exporter error, %v", errors.ErrorStack(err))
+	// }
 
-	ctx := context.Background()
-	allMetrics := make([]*dto.MetricFamily, 0, 1024)
-	for _, store := range stores {
-		fmt.Printf("%s\n", store)
-
-		tikvConn, err := grpc.Dial(store, grpc.WithInsecure())
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		tikvClient := debugpb.NewDebugClient(tikvConn)
-		metrics, err := tikvClient.GetMetrics(ctx, &debugpb.GetMetricsRequest{})
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		mData := metrics.GetPrometheus()
-		storeId := metrics.GetStoreId()
-		// fmt.Println(metrics)
-		fmt.Println(storeId)
-
-		labels := map[string]string{
-			"job":      fmt.Sprintf("tikv_%d", storeId),
-			"instance": store,
-		}
-
-		var parser expfmt.TextParser
-		metricFamilies, err := parser.TextToMetricFamilies(bytes.NewBufferString(mData))
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		sanitizeLabels(metricFamilies, labels)
-
-		for _, m := range metricFamilies {
-			allMetrics = append(allMetrics, m)
-		}
-
-		tikvConn.Close()
-	}
-
-	for _, m := range allMetrics {
-		var w bytes.Buffer
-		expfmt.MetricFamilyToText(&w, m)
-		// fmt.Printf("%s", w.String())
-	}
-
+	http.HandleFunc(*metricsPath, handler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
 	        <head><title>TiKV Exporter</title></head>
@@ -162,22 +186,4 @@ func main() {
 
 	log.Info("Listening on", *listenAddress)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
-}
-
-func sanitizeLabels(
-	metricFamilies map[string]*dto.MetricFamily,
-	groupingLabels map[string]string,
-) {
-	for _, mf := range metricFamilies {
-		for _, m := range mf.GetMetric() {
-			for key, value := range groupingLabels {
-				l := &dto.LabelPair{
-					Name:  proto.String(key),
-					Value: proto.String(value),
-				}
-				m.Label = append(m.Label, l)
-			}
-			sort.Sort(prometheus.LabelPairSorter(m.Label))
-		}
-	}
 }

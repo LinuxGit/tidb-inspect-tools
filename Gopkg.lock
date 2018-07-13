@@ -156,7 +156,7 @@
     "pkg/metapb",
     "pkg/raft_serverpb"
   ]
-  revision = "3357dfe1c5dafdfd8fc4d4a55fd85e97600fa8a3"
+  revision = "7f09068ced84187574699b956cf09530b54884c2"
 
 [[projects]]
   name = "github.com/prometheus/client_golang"
@@ -171,7 +171,7 @@
   branch = "master"
   name = "github.com/prometheus/client_model"
   packages = ["go"]
-  revision = "99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c"
+  revision = "5c3871d89910bfb32f5fcab2aa4b9ec68e65a99f"
 
 [[projects]]
   branch = "master"
@@ -247,7 +247,7 @@
     "internal/timeseries",
     "trace"
   ]
-  revision = "cffdcf672aee934982473246bc7e9a8ba446aa9b"
+  revision = "d0887baf81f4598189d4e12a37c6da86f0bba4d0"
 
 [[projects]]
   name = "golang.org/x/text"
