@@ -16,20 +16,16 @@ import (
 	"github.com/juju/errors"
 	"github.com/ngaut/log"
 	"github.com/pingcap/kvproto/pkg/debugpb"
+	"github.com/pingcap/tidb-inspect-tools/pkg/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
-	"github.com/prometheus/common/version"
 	"google.golang.org/grpc"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type tikvOpts struct {
 	addrs string
-}
-
-func init() {
-	prometheus.MustRegister(version.NewCollector("tikv_exporter"))
 }
 
 // ParseHostPortAddr returns a host:port list
@@ -69,7 +65,7 @@ func main() {
 	)
 
 	kingpin.Flag("tikv.addrs", "Addresses (host:port) of TiKV server nodes, comma separated.").Default("").StringVar(&opts.addrs)
-	kingpin.Version(version.Print("tikv_exporter"))
+	kingpin.Version(utils.GetRawInfo("tikv_exporter"))
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
 

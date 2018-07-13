@@ -1,3 +1,4 @@
+LDFLAGS += -X "github.com/pingcap/tidb-inspect-tools/pkg/utils.Version=1.0.0"
 LDFLAGS += -X "github.com/pingcap/tidb-inspect-tools/pkg/utils.BuildTS=$(shell date -u '+%Y-%m-%d %I:%M:%S')"
 LDFLAGS += -X "github.com/pingcap/tidb-inspect-tools/pkg/utils.GitHash=$(shell git rev-parse HEAD)"
 
