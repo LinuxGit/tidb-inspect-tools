@@ -79,22 +79,21 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	allMetrics := make([]*dto.MetricFamily, 0, 1024)
 	for _, store := range stores {
-		fmt.Printf("%s\n", store)
-
 		tikvConn, err := grpc.Dial(store, grpc.WithInsecure())
 		if err != nil {
-			log.Error(err)
+			log.Errorf("grpc dial store '%s' error, %v", store, err)
+			continue
 		}
 
 		tikvClient := debugpb.NewDebugClient(tikvConn)
 		metrics, err := tikvClient.GetMetrics(ctx, &debugpb.GetMetricsRequest{})
 		if err != nil {
-			log.Error(err)
+			log.Errorf("get metrics of store '%s' error, %v", store, err)
+			continue
 		}
 
 		mData := metrics.GetPrometheus()
 		storeID := metrics.GetStoreId()
-		fmt.Println(storeID)
 
 		labels := map[string]string{
 			"job":      fmt.Sprintf("tikv_%d", storeID),
