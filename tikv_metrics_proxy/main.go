@@ -81,14 +81,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	for _, store := range stores {
 		tikvConn, err := grpc.Dial(store, grpc.WithInsecure())
 		if err != nil {
-			log.Errorf("grpc dial store '%s' error, %v", store, err)
+			log.Errorf("store '%s', grpc dial error, %v", store, err)
 			continue
 		}
 
 		tikvClient := debugpb.NewDebugClient(tikvConn)
 		metrics, err := tikvClient.GetMetrics(ctx, &debugpb.GetMetricsRequest{})
 		if err != nil {
-			log.Errorf("get metrics of store '%s' error, %v", store, err)
+			log.Errorf("store '%s', get metrics error, %v", store, err)
 			continue
 		}
 
@@ -103,7 +103,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		var parser expfmt.TextParser
 		metricFamilies, err := parser.TextToMetricFamilies(bytes.NewBufferString(mData))
 		if err != nil {
-			log.Error(err)
+			log.Errorf("store '%s', TextToMetricFamilies error, %v", store, err)
+			continue
 		}
 
 		sanitizeLabels(metricFamilies, labels)
@@ -117,7 +118,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	for _, m := range allMetrics {
 		var b bytes.Buffer
-		expfmt.MetricFamilyToText(&b, m)
+		_, err := expfmt.MetricFamilyToText(&b, m)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			log.Errorf("MetricFamilyToText error, %v", err)
+		}
 		fmt.Fprintf(w, "%s", b.String())
 	}
 }
