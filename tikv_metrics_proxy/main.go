@@ -51,9 +51,9 @@ func ParseHostPortAddr(s string) ([]string, error) {
 	return addrs, nil
 }
 
-func checkParameters(opts tikvOpts) {
+func checkFlags(opts tikvOpts) {
 	if opts.addrs == "" {
-		log.Fatalf("missing startup parameter: --tikv.addrs")
+		log.Fatal("missing startup flag: --tikv.addrs")
 	}
 }
 
@@ -83,13 +83,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 		tikvConn, err := grpc.Dial(store, grpc.WithInsecure())
 		if err != nil {
-			log.Fatal(err)
+			log.Error(err)
 		}
 
 		tikvClient := debugpb.NewDebugClient(tikvConn)
 		metrics, err := tikvClient.GetMetrics(ctx, &debugpb.GetMetricsRequest{})
 		if err != nil {
-			log.Fatal(err)
+			log.Error(err)
 		}
 
 		mData := metrics.GetPrometheus()
@@ -104,7 +104,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		var parser expfmt.TextParser
 		metricFamilies, err := parser.TextToMetricFamilies(bytes.NewBufferString(mData))
 		if err != nil {
-			log.Fatal(err)
+			log.Error(err)
 		}
 
 		sanitizeLabels(metricFamilies, labels)
@@ -134,12 +134,12 @@ func main() {
 		opts = tikvOpts{}
 	)
 
-	kingpin.Flag("tikv.addrs", "Addresses (host:port) of TiKV server nodes, comma separated.").Default("").StringVar(&opts.addrs)
+	kingpin.Flag("tikv.addrs", "Addresses (host:port) of TiKV instances, comma separated.").Default("").StringVar(&opts.addrs)
 	kingpin.Version(utils.GetRawInfo("tikv_metrics_proxy"))
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
 
-	checkParameters(opts)
+	checkFlags(opts)
 
 	log.SetLevelByString(*logLevel)
 	if *logFile != "" {
@@ -151,12 +151,13 @@ func main() {
 		}
 	}
 
-	log.Info("Starting tikv_metrics_proxy")
+	log.Info("starting tikv_metrics_proxy")
 
-	stores, _ = ParseHostPortAddr(opts.addrs)
-	// if err != nil {
-	//     log.Fatalf("initialize tikv_metrics_proxy error, %v", errors.ErrorStack(err))
-	// }
+	var err error
+	stores, err = ParseHostPortAddr(opts.addrs)
+	if err != nil {
+		log.Fatalf("initialize tikv_metrics_proxy error, %v", errors.ErrorStack(err))
+	}
 
 	http.HandleFunc(*metricsPath, handler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -183,6 +184,6 @@ func main() {
 		os.Exit(0)
 	}()
 
-	log.Info("Listening on", *listenAddress)
+	log.Info("listening on", *listenAddress)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
