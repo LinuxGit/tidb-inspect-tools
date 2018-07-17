@@ -135,7 +135,7 @@ func main() {
 	)
 
 	kingpin.Flag("tikv.addrs", "Addresses (host:port) of TiKV server nodes, comma separated.").Default("").StringVar(&opts.addrs)
-	kingpin.Version(utils.GetRawInfo("tikv_exporter"))
+	kingpin.Version(utils.GetRawInfo("tikv_metrics_proxy"))
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
 
@@ -151,19 +151,19 @@ func main() {
 		}
 	}
 
-	log.Info("Starting tikv_exporter")
+	log.Info("Starting tikv_metrics_proxy")
 
 	stores, _ = ParseHostPortAddr(opts.addrs)
 	// if err != nil {
-	//     log.Fatalf("initialize tikv_exporter error, %v", errors.ErrorStack(err))
+	//     log.Fatalf("initialize tikv_metrics_proxy error, %v", errors.ErrorStack(err))
 	// }
 
 	http.HandleFunc(*metricsPath, handler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
-	        <head><title>TiKV Exporter</title></head>
+	        <head><title>TiKV metrics proxy</title></head>
 	        <body>
-	        <h1>TiKV Exporter</h1>
+	        <h1>TiKV metrics proxy</h1>
 	        <p><a href='` + *metricsPath + `'>Metrics</a></p>
 	        </body>
 	        </html>`))
@@ -180,7 +180,6 @@ func main() {
 	go func() {
 		sig := <-sc
 		log.Infof("got signal [%d] to exit", sig)
-
 		os.Exit(0)
 	}()
 
