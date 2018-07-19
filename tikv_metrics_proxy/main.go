@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/golang/protobuf/proto"
@@ -77,20 +78,26 @@ func sanitizeLabels(
 }
 
 func getMetricFamilies() []*dto.MetricFamily {
+	wg := sync.WaitGroup{}
+	mutex := &sync.Mutex{}
 	ctx := context.Background()
 	allMetrics := make([]*dto.MetricFamily, 0, 1024)
-	for _, store := range stores {
+
+	getStoreMetrics := func(store string) {
+		defer wg.Done()
+
 		tikvConn, err := grpc.Dial(store, grpc.WithInsecure())
 		if err != nil {
 			log.Errorf("store '%s', grpc dial error, %v", store, err)
-			continue
+			return
 		}
+		defer tikvConn.Close()
 
 		tikvClient := debugpb.NewDebugClient(tikvConn)
 		metrics, err := tikvClient.GetMetrics(ctx, &debugpb.GetMetricsRequest{})
 		if err != nil {
 			log.Errorf("store '%s', get metrics error, %v", store, err)
-			continue
+			return
 		}
 
 		mData := metrics.GetPrometheus()
@@ -105,17 +112,24 @@ func getMetricFamilies() []*dto.MetricFamily {
 		metricFamilies, err := parser.TextToMetricFamilies(bytes.NewBufferString(mData))
 		if err != nil {
 			log.Errorf("store '%s', TextToMetricFamilies error, %v", store, err)
-			continue
+			return
 		}
 
 		sanitizeLabels(metricFamilies, labels)
 
+		mutex.Lock()
 		for _, m := range metricFamilies {
 			allMetrics = append(allMetrics, m)
 		}
-
-		tikvConn.Close()
+		mutex.Unlock()
 	}
+
+	for _, store := range stores {
+		wg.Add(1)
+		go getStoreMetrics(store)
+	}
+
+	wg.Wait()
 
 	return allMetrics
 }
