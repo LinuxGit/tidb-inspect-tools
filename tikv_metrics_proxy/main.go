@@ -18,6 +18,7 @@ import (
 	"github.com/pingcap/kvproto/pkg/debugpb"
 	"github.com/pingcap/tidb-inspect-tools/pkg/utils"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"google.golang.org/grpc"
@@ -75,7 +76,7 @@ func sanitizeLabels(
 	}
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
+func getMetricFamilies() []*dto.MetricFamily {
 	ctx := context.Background()
 	allMetrics := make([]*dto.MetricFamily, 0, 1024)
 	for _, store := range stores {
@@ -116,15 +117,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		tikvConn.Close()
 	}
 
-	for _, m := range allMetrics {
-		var b bytes.Buffer
-		_, err := expfmt.MetricFamilyToText(&b, m)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			log.Errorf("MetricFamilyToText error, %v", err)
-		}
-		fmt.Fprintf(w, "%s", b.String())
-	}
+	return allMetrics
 }
 
 func main() {
@@ -163,7 +156,11 @@ func main() {
 		log.Fatalf("initialize tikv_metrics_proxy error, %v", errors.ErrorStack(err))
 	}
 
-	http.HandleFunc(*metricsPath, handler)
+	prometheus.DefaultGatherer = prometheus.Gatherers{
+		prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) { return getMetricFamilies(), nil }),
+	}
+
+	http.Handle(*metricsPath, promhttp.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
 	        <head><title>TiKV metrics proxy</title></head>
