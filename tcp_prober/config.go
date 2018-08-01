@@ -18,6 +18,7 @@ func SetConfig(configFile string) error {
 // Config ... tcp_prober template config
 type Config struct {
 	Service map[string]service
+	TiDB    tidb
 }
 
 type service struct {
@@ -25,4 +26,13 @@ type service struct {
 	Alertname string
 	Summary   string
 	Level     string
+}
+
+type tidb struct {
+	Addr      string
+	Alertname string
+	Summary   string
+	Level     string
+	Username  string
+	Password  string
 }

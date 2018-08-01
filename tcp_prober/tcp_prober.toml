@@ -25,3 +25,11 @@ addr = "172.16.10.49:9115"
 alertname = "Blackbox_exporter_server_is_down"
 summary = "Blackbox_exporter server is down"
 level = "emergency"
+
+[tidb]
+addr = "172.16.10.49:4000"
+alertname = "TiDB_server_is_down"
+summary = "TiDB server is down"
+level = "emergency"
+username = "root"
+password = ""

@@ -46,6 +46,10 @@ func main() {
 
 	r := &Run{}
 
+	if err := r.CreateTidbClient(); err != nil {
+		log.Fatalf("Failed to create tidb client with error: %v", err)
+	}
+
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc,
 		syscall.SIGKILL,
