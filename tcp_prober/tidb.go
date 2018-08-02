@@ -83,11 +83,9 @@ func probeTiDB(addr string, db *sql.DB) bool {
 	for i := 0; i < maxDialRetry; i++ {
 		err := probeQuery(addr, db)
 		if err != nil {
-			log.Errorf("Failed to query %s, %v", addr, err)
 			time.Sleep(retryDialInterval)
 			continue
 		}
-		log.Infof("Successfully query %s", addr)
 		return true
 	}
 	return false
